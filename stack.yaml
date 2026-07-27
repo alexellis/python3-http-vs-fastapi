@@ -1,0 +1,108 @@
+version: 1.0
+provider:
+  name: openfaas
+  gateway: ${OPENFAAS_URL:-https://openfaas.o6s.io}
+
+configuration:
+  templates:
+    - name: dockerfile
+      source: https://github.com/openfaas/templates
+    - name: python3-http
+      source: https://github.com/openfaas/python-flask-template
+    - name: python3
+      source: https://github.com/openfaas/templates-classic
+
+functions:
+  # 1. A plain FastAPI microservice. No watchdog in the image at all -- the app
+  #    serves 8080 and implements /_/health and /_/ready itself, per the
+  #    OpenFaaS workload definition.
+  fastapi:
+    lang: dockerfile
+    handler: ./fastapi
+    image: ${REGISTRY:-docker.io/alexellis2}/fastapi:${TAG:-latest}
+    environment:
+      init_delay_seconds: "5"
+    annotations:
+      com.openfaas.ready.http.path: /ready
+      com.openfaas.ready.http.initialDelaySeconds: "2"
+      com.openfaas.ready.http.periodSeconds: "2"
+    limits:
+      memory: 256Mi
+    requests:
+      memory: 64Mi
+      cpu: 50m
+
+  # 2. The same FastAPI app, with of-watchdog in front of it in HTTP mode. The
+  #    Dockerfile is adapted from the python3-http template. Watchdog settings
+  #    such as read_timeout and prefix_logs now apply.
+  fastapi-watchdog:
+    lang: dockerfile
+    handler: ./fastapi-watchdog
+    image: ${REGISTRY:-docker.io/alexellis2}/fastapi-watchdog:${TAG:-latest}
+    environment:
+      init_delay_seconds: "5"
+      read_timeout: 30s
+      write_timeout: 30s
+      # Short on purpose: ?sleep=20 exceeds it, so the caller is cut loose.
+      exec_timeout: 10s
+      prefix_logs: "false"
+    annotations:
+      com.openfaas.ready.http.path: /ready
+      com.openfaas.ready.http.initialDelaySeconds: "2"
+      com.openfaas.ready.http.periodSeconds: "2"
+    limits:
+      memory: 256Mi
+    requests:
+      memory: 64Mi
+      cpu: 50m
+
+  # 3. The python3-http template used as-is: no Dockerfile to maintain, just a
+  #    handler and a requirements.txt.
+  python3-http-echo:
+    lang: python3-http
+    handler: ./python3-http-echo
+    image: ${REGISTRY:-docker.io/alexellis2}/python3-http-echo:${TAG:-latest}
+    environment:
+      init_delay_seconds: "5"
+      read_timeout: 30s
+      write_timeout: 30s
+      # Short on purpose: ?sleep=20 exceeds it, so the caller is cut loose.
+      exec_timeout: 10s
+      prefix_logs: "false"
+    annotations:
+      com.openfaas.ready.http.path: /ready
+      com.openfaas.ready.http.initialDelaySeconds: "2"
+      com.openfaas.ready.http.periodSeconds: "2"
+    build_args:
+      TEST_ENABLED: "true"
+      PYTHON_VERSION: "3.13"
+    limits:
+      memory: 256Mi
+    requests:
+      memory: 64Mi
+      cpu: 50m
+
+  # 4. The classic watchdog: forks the handler per request, body on stdin and
+  #    response on stdout. The only one of the four where exec_timeout can
+  #    genuinely stop overrunning work, because the watchdog kills the child.
+  #    Try: curl "$GW/function/<name>?sleep=20" against each function.
+  python3-classic:
+    lang: python3
+    handler: ./python3-classic
+    image: ${REGISTRY:-docker.io/alexellis2}/python3-classic:${TAG:-latest}
+    environment:
+      # The classic watchdog writes text/plain unless told otherwise.
+      content_type: application/json
+      read_timeout: 30s
+      write_timeout: 30s
+      # Same 10s as the of-watchdog functions, for a like-for-like comparison.
+      # Here it genuinely kills the work; there it only cuts the caller loose.
+      exec_timeout: 10s
+    # No readiness annotation on purpose: a fresh process per request has no
+    # warm-up state to gate on, so the watchdog's built-in check is enough.
+    limits:
+      memory: 256Mi
+    requests:
+      memory: 64Mi
+      cpu: 50m
+

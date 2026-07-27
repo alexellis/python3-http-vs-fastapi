@@ -210,18 +210,3 @@ function's own `requirements.txt` with `--user`. Its own dependencies (Flask,
 waitress) go in system-wide as root, so a function with an empty
 `requirements.txt` is fine — add a single dependency and it fails the same way
 on a cluster with `setNonRootUser` enabled.
-
-## Gotcha: `limits`/`requests` and `local-run`
-
-`faas-cli local-run` passes `limits.memory` and `limits.cpu` straight through to
-`docker run --memory-reservation` and `--cpus`, which reject Kubernetes units:
-
-```
-invalid argument "256Mi" for "--memory-reservation" flag: invalid suffix: 'mi'
-failed to parse 100m as a rational number
-```
-
-Fixed in faas-cli by converting Kubernetes quantities to Docker's units
-(`256Mi` → `268435456` bytes, `100m` → `0.1` CPUs). Until that release ships,
-`faas-cli local-run` on a released binary needs the `limits`/`requests` blocks
-in `stack.yaml` commented out; `faas-cli up` is unaffected either way.

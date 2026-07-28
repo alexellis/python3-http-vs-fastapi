@@ -13,6 +13,12 @@ def health():
     return "OK"
 
 
+@app.get("/ready")
+def ready():
+    # Check real dependencies here (DB, model); return a 503 until ready.
+    return "OK"
+
+
 @app.get("/")
 def index():
     return {"message": "Hello from FastAPI"}

@@ -18,18 +18,24 @@ functions:
     lang: dockerfile
     handler: ./fastapi
     image: ${REGISTRY:-docker.io/alexellis2}/fastapi:${TAG:-latest}
+    annotations:
+      com.openfaas.ready.http.path: /ready
 
   # The same FastAPI app, with of-watchdog in front of it in HTTP mode.
   fastapi-watchdog:
     lang: dockerfile
     handler: ./fastapi-watchdog
     image: ${REGISTRY:-docker.io/alexellis2}/fastapi-watchdog:${TAG:-latest}
+    annotations:
+      com.openfaas.ready.http.path: /ready
 
   # The python3-http template, used as-is.
   python3-http-echo:
     lang: python3-http
     handler: ./python3-http-echo
     image: ${REGISTRY:-docker.io/alexellis2}/python3-http-echo:${TAG:-latest}
+    annotations:
+      com.openfaas.ready.http.path: /ready
 
   # The classic watchdog: forks the handler once per request.
   python3-classic:
